@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Toddler Flashcards</title>
+    <style>
+        @page { size: A4; margin: 0; }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: #f0f0f0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        /* ── Toolbar ── */
+        #toolbar {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            height: 52px;
+            background: white;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0 16px;
+            z-index: 100;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        }
+        #toolbar label {
+            font-size: 13px;
+            color: #555;
+            white-space: nowrap;
+        }
+        #preset-select {
+            padding: 6px 10px;
+            font-size: 13px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            cursor: pointer;
+            min-width: 200px;
+        }
+        .tbtn {
+            padding: 7px 16px;
+            border: none;
+            border-radius: 5px;
+            font-size: 13px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        #btn-print { background: #007bff; color: white; }
+        #btn-print:hover { background: #0069d9; }
+        #btn-custom { background: #6c757d; color: white; }
+        #btn-custom:hover { background: #5a6268; }
+        #file-input { display: none; }
+        #status {
+            font-size: 12px;
+            color: #888;
+            margin-left: 4px;
+        }
+        @media print { #toolbar { display: none; } }
+
+        /* ── Grid ── */
+        .page-wrap {
+            padding-top: 62px; /* clear the fixed toolbar */
+        }
+        @media print { .page-wrap { padding-top: 0; } }
+
+        .container {
+            width: 210mm;
+            height: 297mm;
+            margin: 10mm auto;
+            background: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            grid-template-rows: repeat(10, 1fr);
+            gap: 1.5mm;
+            padding: 5mm;
+        }
+        @media print {
+            body { background: none; }
+            .container { margin: 0; box-shadow: none; width: 210mm; height: 297mm; }
+            .card { border: 1px solid #ddd; }
+        }
+
+        .card {
+            border: 1px solid #eee;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px;
+            overflow: hidden;
+            background: #fff;
+            border-radius: 4px;
+        }
+        .card img {
+            width: 100%;
+            height: 70%;
+            object-fit: cover;
+            border-radius: 2px;
+            background: #f0f0f0;
+        }
+        .card span {
+            font-size: 9px;
+            font-weight: bold;
+            color: #333;
+            text-align: center;
+            margin-top: 2px;
+            text-transform: capitalize;
+            line-height: 1.1;
+        }
+    </style>
+</head>
+<body>
+
+<div id="toolbar">
+    <label for="preset-select">Set:</label>
+    <select id="preset-select" onchange="onSelectChange(this.value)">
+        <option value="vol-1">Volume 1</option>
+        <option value="vol-2">Volume 2</option>
+        <option value="vol-3">Volume 3</option>
+        <option value="vol-4">Volume 4</option>
+        <option value="vol-5">Volume 5</option>
+        <option value="vol-6">Volume 6</option>
+        <option value="vol-7">Volume 7</option>
+        <option value="__custom__">Load custom JSON file…</option>
+    </select>
+    <button class="tbtn" id="btn-print" onclick="window.print()">Print to A4</button>
+    <input type="file" id="file-input" accept=".json">
+    <span id="status"></span>
+</div>
+
+<div class="page-wrap">
+    <div class="container" id="grid"></div>
+</div>
+
+<script>
+const PRESETS = {
+  "vol-1": {
+    label: "Volume 1",
+    words: ["Fighter Jet","Platypus","Narwhal","Tyrannosaurus","Tornado","Stonehenge","Kaleidoscope","Saturn","Venus Flytrap","Chameleon","Anglerfish","Triceratops","Volcano","Pyramid","Telescope","Mars Rover","Baobab","Echidna","Mantis Shrimp","Stegosaurus","Avalanche","Lighthouse","Microscope","Astronaut","Dandelion","Orangutan","Dumbo Octopus","Ankylosaurus","Tsunami","Colosseum","Periscope","Space Shuttle","Chrysalis","Rhinoceros","Hammerhead","Velociraptor","Aurora","Igloo","Binoculars","Nebula","Fossil","Pangolin","Seahorse","Pterodactyl","Geyser","Sphinx","Boomerang","Space Station","Sequoia","Bulldozer"],
+    wikiTerms: {"Hammerhead":"Hammerhead shark","Tyrannosaurus":"Tyrannosaurus rex","Pterodactyl":"Pterodactylus","Mars Rover":"Mars rover","Dumbo Octopus":"Dumbo octopus","Mantis Shrimp":"Mantis shrimp","Venus Flytrap":"Venus flytrap","Space Station":"International Space Station","Space Shuttle":"Space Shuttle"}
+  },
+  "vol-2": {
+    label: "Volume 2",
+    words: ["Helicopter","Capybara","Pufferfish","Spinosaurus","Glacier","Aqueduct","Catapult","Meteorite","Fireworks","Aardvark","Sea Turtle","Brachiosaurus","Blizzard","Obelisk","Accordion","Comet","Sarcophagus","Wombat","Stingray","Parasaurolophus","Sandstorm","Pagoda","Xylophone","Flamingo","Cuttlefish","Archaeopteryx","Whirlpool","Windmill","Didgeridoo","Peacock","Barracuda","Megalodon","Sinkhole","Ziggurat","Trombone","Bison","Orca","Woolly Mammoth","Quicksand","Amphitheater","Bagpipes","Wildebeest","Moray Eel","Saber-toothed Cat","Eclipse","Moai","Hourglass","Cheetah","Walrus","Dodo"],
+    wikiTerms: {"Saber-toothed Cat":"Saber-toothed cat","Archaeopteryx":"Archaeopteryx","Parasaurolophus":"Parasaurolophus","Woolly Mammoth":"Woolly mammoth","Moai":"Moai","Sea Turtle":"Sea turtle"}
+  },
+  "vol-3": {
+    label: "Volume 3",
+    words: ["Excavator","Quokka","Beluga","Diplodocus","Monsoon","Suspension Bridge","Stethoscope","Solar Flare","Leopard","Piranha","Mosasaurus","Rainbow","Skyscraper","Gyroscope","Supernova","Cassowary","Electric Eel","Smilodon","Stalactite","Labyrinth","Metronome","Ocelot","Jellyfish","Trilobite","Thunderstorm","Carousel","Barometer","Porcupine","Horseshoe Crab","Ammonite","Ferris Wheel","Magnifying Glass","Lemur","Manatee","Quetzalcoatlus","Crater","Parthenon","Sundial","Dingo","Blobfish","Woolly Rhinoceros","Galaxy","Marionette","Manta Ray","Vampire Squid","Mastodon","Compass","Albatross","Sperm Whale","Locomotive"],
+    wikiTerms: {"Woolly Rhinoceros":"Woolly rhinoceros","Quetzalcoatlus":"Quetzalcoatlus","Vampire Squid":"Vampire squid","Horseshoe Crab":"Horseshoe crab","Sperm Whale":"Sperm whale","Solar Flare":"Solar flare","Suspension Bridge":"Suspension bridge"}
+  },
+  "vol-4": {
+    label: "Volume 4",
+    words: ["Combine Harvester","Komodo Dragon","Puffin","Glyptodon","Stalagmite","Trebuchet","Clownfish","Gorilla","Penguin","Megatherium","Abacus","Humpback Whale","Mandrill","Sea Lion","Propeller","Tapir","Lobster","Satellite","Okapi","Octopus","Lute","Jaguar","Nautilus","Crossbow","Hyena","Blue Marlin","Katana","Warthog","Sea Snake","Skeleton","Moose","Dugong","Oboe","Macaw","Porpoise","Mandolin","Toucan","Pelican","Hang Glider","Hornbill","Tarantula","Drone","Condor","Fossa","Dirt Bike","Harpy Eagle","Numbat","Penny-farthing","Secretary Bird","Ibex"],
+    wikiTerms: {"Combine Harvester":"Combine harvester","Komodo Dragon":"Komodo dragon","Harpy Eagle":"Harpy eagle","Secretary Bird":"Secretarybird","Humpback Whale":"Humpback whale","Blue Marlin":"Blue marlin","Sea Snake":"Sea snake","Sea Lion":"Sea lion","Hang Glider":"Hang gliding","Penny-farthing":"Penny-farthing","Glyptodon":"Glyptodon","Megatherium":"Megatherium"}
+  },
+  "vol-5": {
+    label: "Volume 5",
+    words: ["Monster Truck","Shoebill","Meerkat","Kookaburra","Fire Engine","Wolverine","Anaconda","Thorny Devil","Aircraft Carrier","Frilled Lizard","Scorpion","Hot Air Balloon","Praying Mantis","Firefly","Dump Truck","Monarch Butterfly","Goliath Beetle","Forklift","Snow Leopard","Kakapo","Tank","Bald Eagle","Caterpillar","Hovercraft","Emu","Gharial","Zeppelin","Binturong","Viking Longship","Chimpanzee","Chariot","Axolotl","Snowmobile","Hippopotamus","Concorde","Biplane","Trireme","Seaplane","Bobsled","Cable Car","Monorail","Gondola","Glider","Dog Sled","Jetpack","Horse-drawn Carriage","Submarine","Battleship","Armored Vehicle","Blimp"],
+    wikiTerms: {"Shoebill":"Shoebill","Thorny Devil":"Thorny devil","Frilled Lizard":"Frilled-neck lizard","Goliath Beetle":"Goliath beetle","Kakapo":"Kakapo","Binturong":"Binturong","Gharial":"Gharial","Viking Longship":"Viking ships","Horse-drawn Carriage":"Carriage","Armored Vehicle":"Armoured fighting vehicle","Aircraft Carrier":"Aircraft carrier","Monster Truck":"Monster truck","Wolverine":"Wolverine (animal)"}
+  },
+  "vol-6": {
+    label: "Volume 6",
+    words: ["Garbage Truck","Crane","Maglev","Container Ship","Tugboat","Double-decker Bus","Dragster","Arctic Fox","Red Panda","Fennec Fox","Serval","Caracal","Reindeer","Sun Bear","Wallaby","King Cobra","Sailfish","Hermit Crab","Starfish","Iguana","Crocodile","Tasmanian Devil","Armadillo","Ostrich","Giant Panda","Koala","Sloth","Stag Beetle","Atlas Moth","Harp","Clarinet","Tambourine","Banjo","Trumpet","Totem Pole","Waterspout","Howler Monkey","Proboscis Monkey","Coyote","Glowworm","Steamboat","Camel","Otter","Giant Anteater","Flying Squirrel","Lynx","Musk Ox","Bilby","Golden Eagle","Parrot"],
+    wikiTerms: {"Garbage Truck":"Garbage truck","Maglev":"Maglev train","Container Ship":"Container ship","Double-decker Bus":"Double-decker bus","Arctic Fox":"Arctic fox","Red Panda":"Red panda","Fennec Fox":"Fennec fox","Serval":"Serval","Sun Bear":"Sun bear","Wallaby":"Wallaby","King Cobra":"King cobra","Hermit Crab":"Hermit crab","Iguana":"Green iguana","Tasmanian Devil":"Tasmanian devil","Armadillo":"Armadillo","Giant Panda":"Giant panda","Koala":"Koala","Stag Beetle":"Stag beetle","Atlas Moth":"Atlas moth","Totem Pole":"Totem pole","Waterspout":"Waterspout","Howler Monkey":"Howler monkey","Proboscis Monkey":"Proboscis monkey","Giant Anteater":"Giant anteater","Flying Squirrel":"Flying squirrel","Musk Ox":"Musk ox","Golden Eagle":"Golden eagle","Bilby":"Bilby","Steamboat":"Steamboat"}
+  },
+  "vol-7": {
+    label: "Volume 7",
+    words: ["Rickshaw","Snowplow","Stagecoach","Kayak","Cement Mixer","Tow Truck","Catamaran","Bullet Train","Houseboat","Capuchin Monkey","Boa Constrictor","Sugar Glider","Red Kangaroo","Rockhopper Penguin","Flying Fish","Gecko","Salamander","Mongoose","Beaver","Hedgehog","Prairie Dog","Swordfish","Great White Shark","Sea Anemone","Coral Reef","Giraffe","Zebra","Blue Whale","Stonefish","French Horn","Cello","Violin","Prism","Drawbridge","Hailstorm","Dust Devil","Horned Lizard","Iguanodon","Carnotaurus","Giant Tortoise","Leafcutter Ant","Basilisk Lizard","Mole","Honey Badger","Box Jellyfish","Snowshoe Hare","Peregrine Falcon","Puma","Bobcat","Jackal"],
+    wikiTerms: {"Catamaran":"Catamaran","Bullet Train":"Shinkansen","Capuchin Monkey":"Capuchin monkey","Boa Constrictor":"Boa constrictor","Sugar Glider":"Sugar glider","Red Kangaroo":"Red kangaroo","Rockhopper Penguin":"Rockhopper penguin","Flying Fish":"Flying fish","Great White Shark":"Great white shark","Sea Anemone":"Sea anemone","Coral Reef":"Coral reef","Stonefish":"Stonefish","French Horn":"French horn","Horned Lizard":"Horned lizard","Iguanodon":"Iguanodon","Carnotaurus":"Carnotaurus","Giant Tortoise":"Galápagos tortoise","Leafcutter Ant":"Leafcutter ant","Basilisk Lizard":"Green basilisk","Honey Badger":"Honey badger","Box Jellyfish":"Box jellyfish","Snowshoe Hare":"Snowshoe hare","Peregrine Falcon":"Peregrine falcon","Dust Devil":"Dust devil","Tow Truck":"Tow truck","Drawbridge":"Drawbridge","Cement Mixer":"Concrete mixer","Puma":"Cougar","Jackal":"Jackal"}
+  }
+};
+
+const grid      = document.getElementById('grid');
+const status    = document.getElementById('status');
+const fileInput = document.getElementById('file-input');
+const select    = document.getElementById('preset-select');
+
+// Load first preset on startup
+buildCards(PRESETS['vol-1']);
+
+function onSelectChange(value) {
+    if (value === '__custom__') {
+        // Reset select back to last real value after triggering picker
+        select.value = select.dataset.last || 'vol-1';
+        fileInput.click();
+    } else {
+        select.dataset.last = value;
+        buildCards(PRESETS[value]);
+    }
+}
+
+fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (!Array.isArray(data.words) || data.words.length === 0)
+                throw new Error('"words" must be a non-empty array');
+            // Add a custom option so the label updates
+            let opt = select.querySelector('option[value="__loaded__"]');
+            if (!opt) {
+                opt = document.createElement('option');
+                opt.value = '__loaded__';
+                select.insertBefore(opt, select.querySelector('option[value="__custom__"]'));
+            }
+            opt.textContent = file.name.replace('.json', '');
+            select.value = '__loaded__';
+            select.dataset.last = '__loaded__';
+            buildCards({ words: data.words, wikiTerms: data.wikiTerms || {} });
+        } catch (err) {
+            status.textContent = `Error: ${err.message}`;
+        }
+    };
+    reader.readAsText(file);
+    fileInput.value = '';
+});
+
+function buildCards({ words, wikiTerms }) {
+    grid.innerHTML = '';
+    status.textContent = '';
+
+    const cardImages = words.map((word) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        const img = document.createElement('img');
+        img.alt = word;
+        const span = document.createElement('span');
+        span.textContent = word;
+        card.appendChild(img);
+        card.appendChild(span);
+        grid.appendChild(card);
+        return { img, word };
+    });
+
+    loadImages(cardImages, wikiTerms);
+}
+
+// Returns a colored SVG data-URL showing the word's first letter — used when no photo is found
+function makePlaceholder(word) {
+    const hue = [...word].reduce((n, c) => n + c.charCodeAt(0), 0) % 360;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="150" height="105">
+        <rect width="150" height="105" fill="hsl(${hue},45%,82%)"/>
+        <text x="75" y="68" text-anchor="middle" font-size="52"
+              font-family="sans-serif" fill="hsl(${hue},45%,38%)">${word[0].toUpperCase()}</text>
+    </svg>`;
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+}
+
+async function wikiSummary(title) {
+    const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.thumbnail?.source || null;
+}
+
+async function fetchWikipediaImage(word, wikiTerms) {
+    const term = wikiTerms[word] || word;
+
+    // 1. Direct article lookup
+    const direct = await wikiSummary(term);
+    if (direct) return direct;
+
+    // 2. Search Wikipedia for the term and try top 3 results
+    try {
+        const res = await fetch(
+            `https://en.wikipedia.org/w/api.php?action=query&list=search` +
+            `&srsearch=${encodeURIComponent(term)}&srlimit=3&format=json&origin=*`
+        );
+        if (res.ok) {
+            const data = await res.json();
+            for (const result of (data.query?.search || [])) {
+                const src = await wikiSummary(result.title);
+                if (src) return src;
+            }
+        }
+    } catch {}
+
+    return null;
+}
+
+async function loadImages(cardImages, wikiTerms) {
+    let loaded = 0;
+    status.textContent = `Loading 0 / ${cardImages.length}`;
+
+    await Promise.all(cardImages.map(async ({ img, word }) => {
+        const src = await fetchWikipediaImage(word, wikiTerms);
+        img.src = src || makePlaceholder(word);
+        status.textContent = `Loading ${++loaded} / ${cardImages.length}`;
+    }));
+
+    status.textContent = 'Ready to print';
+    setTimeout(() => { status.textContent = ''; }, 4000);
+}
+</script>
+</body>
+</html>
